@@ -1,0 +1,6 @@
+.env
+node_modules/
+dist/
+.env
+/server/node_modules/
+/Onequiz-addin/Onequiz/node_modules/
