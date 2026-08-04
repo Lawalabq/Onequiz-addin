@@ -1,0 +1,118 @@
+# OneQuiz
+
+OneQuiz is an Office add-in for OneNote that turns handwritten or recognized ink from the active page into a generated quiz. The add-in captures ink analysis from the current OneNote page, sends it to a local server, and displays AI-generated multiple-choice or short-answer questions in the task pane.
+
+## Overview
+
+This project consists of two parts:
+
+- A frontend Office add-in located in [Onequiz](Onequiz)
+- A Node.js backend server located in [server](server)
+
+The frontend runs inside OneNote as a task pane, while the backend communicates with an AI model to produce educational quiz content.
+
+## Features
+
+- Opens inside OneNote as a task pane add-in
+- Reads ink analysis from the active page
+- Sends page content to a quiz-generation API
+- Generates quiz questions with multiple-choice or short-answer formats
+- Lets the user navigate through questions and check answers
+
+## Project Structure
+
+- [Onequiz](Onequiz) – Office add-in source and webpack configuration
+  - [Onequiz/manifest.xml](Onequiz/manifest.xml) – add-in manifest for OneNote
+  - [Onequiz/src/taskpane](Onequiz/src/taskpane) – task pane UI and quiz logic
+  - [Onequiz/package.json](Onequiz/package.json) – frontend dependencies and scripts
+- [server](server) – backend API for quiz generation
+  - [server/server.js](server/server.js) – Express API entry point
+  - [server/generateQuiz.js](server/generateQuiz.js) – AI quiz generation logic
+  - [server/prompt.txt](server/prompt.txt) – prompt template used for quiz generation
+
+## Tech Stack
+
+- Frontend: JavaScript, HTML, CSS, Office Add-ins API
+- Build tooling: Webpack, Babel
+- Backend: Node.js, Express
+- AI integration: OpenAI-compatible API via Hugging Face router
+- Development helpers: ngrok, nodemon
+
+## Prerequisites
+
+Before running the project, make sure you have:
+
+- Node.js and npm installed
+- OneNote desktop installed and available for testing
+- A valid AI API token in the environment variable `HF_TOKEN`
+- Optional: ngrok credentials for public tunneling via `NGROK_AUTHTOKEN` and `NGROK_DOMAIN`
+
+## Environment Setup
+
+Create a `.env` file inside [server](server) with the required variables:
+
+```env
+HF_TOKEN=your_huggingface_token
+PORT=3001
+NGROK_AUTHTOKEN=your_ngrok_token
+NGROK_DOMAIN=your_ngrok_domain
+```
+
+## Running the Project
+
+### 1. Install dependencies
+
+From the project root:
+
+```bash
+cd Onequiz
+npm install
+
+cd ../server
+npm install
+```
+
+### 2. Start the frontend and backend
+
+You can use the provided script:
+
+```bash
+start.bat
+```
+
+Or run each part manually:
+
+```bash
+cd Onequiz
+npm run dev-server
+```
+
+```bash
+cd server
+npx nodemon server.js
+```
+
+```bash
+cd server
+npx nodemon endpoint.js
+```
+
+The frontend dev server runs on port 3000 and the backend API runs on port 3001 by default.
+
+## How It Works
+
+1. The task pane add-in runs inside OneNote.
+2. It reads recognized text from the active page using ink analysis.
+3. The frontend sends the extracted text to the backend API at `/api/generate-quiz`.
+4. The backend builds a prompt and calls the AI model.
+5. The generated quiz is returned to the add-in and displayed in the task pane.
+
+## Notes
+
+- The current implementation uses the OneNote ink-analysis API and expects recognized text to be available on the active page.
+- The quiz generation endpoint is designed for local development and testing.
+- For production use, the backend should be hardened with authentication, better error handling, and more robust prompt validation.
+
+## License
+
+This project uses the MIT license for the add-in frontend and the existing server package license declaration in [server/package.json](server/package.json).

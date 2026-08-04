@@ -6,6 +6,24 @@
 /* global document, Office */
 
 
+import {getInkAnalysisResults,getImageOcrData} from "./oneNoteExtraction.js"
+import { updateQuestion } from "./Layout.js";
+
+
+// Sign In Logic
+// async function getUserToken() {
+//   try {
+//     const accessToken = await OfficeRuntime.auth.getAccessToken({
+//       allowSignInPrompt: true,
+//       allowConsentPrompt: true,
+//       forMSGraphAccess: false
+//     });
+//     return accessToken;
+//   } catch (error) {
+//     console.error("SSO token error:", error.code, error.message);
+//     throw error;
+//   }
+// }
 
 
 Office.onReady((info) => {
@@ -13,21 +31,43 @@ Office.onReady((info) => {
     document.getElementById("sideload-msg").style.display = "none";
     document.getElementById("app-body").style.display = "flex";
     document.getElementById("run").onclick = run;
+    document.getElementById("test_run").onclick = test_run;
   }
+
+// Sign In Logic
+
+  if (info.host === Office.HostType.OneNote) {
+    try {
+      userAccessToken = await getUserToken();
+      console.log("Signed in successfully");
+      // now you can call your backend, e.g. loadUserData();
+    } catch (error) {
+      console.error("Failed to get SSO token on load:", error);
+      // fall back to a manual "Sign in" button here (see below)
+    }
+  }
+
+
+
 });
 
 export async function run() {
+  /* Main functin for generating quizes from pages
+
+  */
   try {
     await OneNote.run(async (context) => {
       const page = context.application.getActivePage();
+    
 
       const firstTextPrediction = await getInkAnalysisResults(context, page, 0);
       const secondTextPrediction = await getInkAnalysisResults(context, page, 1);
+      const imageOCR = await getImageOcrData(context,page);
       
       const res = await fetch("api/generate-quiz", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ firstText: firstTextPrediction, secondText: secondTextPrediction, numQuestions: 10 })
+      headers: { "Content-Type": "application/json",'Authorization': `Bearer ${userAccessToken}` },
+      body: JSON.stringify({ firstText: firstTextPrediction, secondText: secondTextPrediction, imageText:imageOCR, numQuestions: 10 })
     });
 
     if (res.ok){
@@ -69,15 +109,13 @@ export async function run() {
 
 
 
-  }});
+  }
+else if (response.status === 401){
+      userAccessToken = await getUserToken();
+    }
 
+});
 
-
-
-
-    
-
-      
   
   } catch (error) {
     console.error(error);
@@ -90,153 +128,191 @@ export async function run() {
 
 
 
+export async function test_run() {
+  // Failed function pages need to be active to get info from them
+  try {
+    await OneNote.run(async (context) => {  
+       const pages = context.application.getActiveSection().pages;
+       pages.load('items');
+       await context.sync();
 
+       let currentActivePage = context.application.getActivePage();
 
+       let pageInkAnalysisList = [];
+       let pageOCRText =[];
+      // console.log(pages);
+       for (var i =0 ; i<pages.items.length;i++){
+        const page =pages.items[i];
+        // console.log(page.inkAnalysisOrNull);
+        context.application.navigateToPage(page);
+        let inkAnalysisResults = await getInkAnalysisResults(context,page,0);
+        let pageOCRResults= await getImageOcrData(context,page);
+        pageInkAnalysisList.push(inkAnalysisResults);
+        pageOCRText.push(pageOCRResults);
 
+       }
+       await context.sync();
 
+       //Need to add question number selection
 
+      context.application.navigateToPage(currentActivePage);
+      const res = await fetch("api/generate-section-quiz", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" ,'Authorization': `Bearer ${userAccessToken}`},
+      body: JSON.stringify({ inkAnalysisList:pageInkAnalysisList, OCRResults:pageOCRText ,numQuestions: 20 })
+    });
 
-// This function updates the question and answer choices based on the current question index
-function updateQuestion(index, quizquestions) {
+    if (res.ok){
 
-  // remove event lsistener from the check answer button to avoid multiple event listeners being added
-  let checkAnswerButton = document.getElementById("check-answer");
-  let newCheckAnswerButton = checkAnswerButton.cloneNode(true);
-  checkAnswerButton.parentNode.replaceChild(newCheckAnswerButton, checkAnswerButton);
-
-
-  //Setting the current question index and displaying the first question
-      let currentQuestionIndex = index;
-      let questionNumberElement = document.getElementById("question-number");
-      questionNumberElement.textContent = `Question ${currentQuestionIndex + 1} of ${quizquestions.length}`;
-
-      //clear the previous answer choices
-      let answerElement = document.getElementById("question_answer");
-      answerElement.innerHTML = "";
-
-
-      let questionElement = document.getElementById("question");
-      questionElement.textContent = quizquestions[currentQuestionIndex].question;
-
-      let questionType = quizquestions[currentQuestionIndex].questionType;
-
-      // Displaying the answer choices based on the question type
-
-      //this needs effecienyc work like the double storing of options and the answer
-      if (questionType === "multiple_choice") {
-        let answerElement = document.getElementById("question_answer");
-        for ( let choice in quizquestions[currentQuestionIndex].choices) {
-          let choiceElement = document.createElement("input");
-          choiceElement.type = "radio";
-          choiceElement.name = "answer";
-          choiceElement.value = quizquestions[currentQuestionIndex].choices[choice];
-          answerElement.appendChild(choiceElement);
-
-          let labelElement = document.createElement("label");
-          labelElement.textContent = quizquestions[currentQuestionIndex].choices[choice];
-          answerElement.appendChild(labelElement);
-
-          
-        }
-
-        // Adding event listener to the check answer button
-        let checkAnswerButton = document.getElementById("check-answer");
-        checkAnswerButton.addEventListener("click", function(event) {
-          event.preventDefault();
-         
-        let selectedAnswer = document.querySelector('input[name="answer"]:checked');
-         console.log("selected ",selectedAnswer.value);
-         console.log("answer ", quizquestions[currentQuestionIndex].correctAnswer);
-
-        if (selectedAnswer.value === quizquestions[currentQuestionIndex].correctAnswer) {
-          let labelElement = selectedAnswer.nextSibling;
-          labelElement.style.color = "green";
-        }
-        else {
-          let labelElement = selectedAnswer.nextSibling;
-          labelElement.style.color = "red";
-        }})
-
-
-
-
-      }
-      else if (questionType === "short_answer") {
-        let answerElement = document.getElementById("question_answer");
-        let textInputElement = document.createElement("input");
-        textInputElement.type = "text";
-        textInputElement.name = "answer";
-        answerElement.appendChild(textInputElement);
-
-        // Adding event listener to the check answer button
-        let checkAnswerButton = document.getElementById("check-answer");
-        checkAnswerButton.addEventListener("click", function(event) {
-        event.preventDefault();
-        let userAnswer = textInputElement.value.trim().toLowerCase();
-        
-        let correctAnswer = quizquestions[currentQuestionIndex].correctAnswer.trim().toLowerCase();
-
-        if (correctAnswer.includes(userAnswer)) {
-          textInputElement.style.backgroundColor = "green";
-        }
-        else {
-          textInputElement.style.backgroundColor = "red";
-        }})
-      }
-
+      let {quiz} = await res.json();
+      quiz = JSON.parse(quiz);
+      startQuiz(quiz);
+    }
+    else if (response.status === 401){
+      userAccessToken = await getUserToken();
     }
 
 
 
+      
+
+       // 
+       
+       
+
+    
 
 
 
 
 
-async function getInkAnalysisResults(context, page, wordAlternatesChoice = 0) {
-  const inkAnalysis = page.inkAnalysisOrNull;
-  inkAnalysis.load("id");
-  await context.sync();
 
-  if (inkAnalysis.isNull) {
-    console.log("No ink analysis available.");
-    return "";
+
+
+
+
+    //   const res = await fetch("api/base64-OCR", {
+    //   method: "POST",
+    //   headers: { "Content-Type": "application/json" },
+    //   body: JSON.stringify({ base64Strings: base64Strings})
+    // });
+
+    
+
+
+    
+       
+
+
+    })
   }
+  catch (error) {
+    console.error(error);
+  }};
 
-  const paragraphs = inkAnalysis.paragraphs;
-  paragraphs.load("items");
-  await context.sync();
 
-  for (const paragraph of paragraphs.items) {
-    paragraph.lines.load("items");
-  }
-  await context.sync();
 
-  for (const paragraph of paragraphs.items) {
-    for (const line of paragraph.lines.items) {
-      line.words.load("items");
-    }
-  }
-  await context.sync();
 
-  for (const paragraph of paragraphs.items) {
-    for (const line of paragraph.lines.items) {
-      for (const word of line.words.items) {
-        word.load("wordAlternates");
+
+// export async function test_run() {
+//   try {
+//     await OneNote.run(async (context) => {  
+//        const page = context.application.getActivePage();
+//        let image_json= await getImageOcrData(context,page);
+
+//        const base64Strings = image_json.map(u => u.base64);
+//        const onenoteOCR = image_json.map(u=> u.ocrText);
+//        console.log(onenoteOCR);
+
+
+
+//     //   const res = await fetch("api/base64-OCR", {
+//     //   method: "POST",
+//     //   headers: { "Content-Type": "application/json" },
+//     //   body: JSON.stringify({ base64Strings: base64Strings})
+//     // });
+
+//     if (res.ok){
+//       let imageText = await res.json;
+//       console.log(imageText)
+//     }
+
+
+    
+       
+
+
+//     })
+//   }
+//   catch (error) {
+//     console.error(error);
+//   }};
+
+
+function startQuiz(quiz){
+  // Display the quiz questions in the task pane
+      const quizquestions = quiz.questions;
+      const quizContainer = document.getElementById("quiz-form");
+      quizContainer.style.display = "block";
+
+      // This populates the question and answer choices in the task pane
+      let currentQuestionIndex = 0;
+      updateQuestion(currentQuestionIndex, quizquestions);
+
+
+    // Adding event listeners to the navigation buttons
+    let prevButton = document.getElementById("prev-question");
+    let nextButton = document.getElementById("next-question");
+
+    prevButton.addEventListener("click", function(event) {
+      event.preventDefault();
+      if (currentQuestionIndex > 0) {
+        currentQuestionIndex--;
+        updateQuestion(currentQuestionIndex, quizquestions);
       }
-    }
-  }
-  await context.sync();
+    });
 
-  let recognizedText = "";
-  for (const paragraph of paragraphs.items) {
-    for (const line of paragraph.lines.items) {
-      for (const word of line.words.items) {
-        recognizedText += word.wordAlternates[wordAlternatesChoice] + " ";
+    nextButton.addEventListener("click", function(event) {
+      event.preventDefault();
+      if (currentQuestionIndex < quizquestions.length - 1) {
+        currentQuestionIndex++;
+        updateQuestion(currentQuestionIndex, quizquestions);
       }
-      recognizedText += "\n";
-    }
-  }
+    });
 
-  return recognizedText;
-}
+
+
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

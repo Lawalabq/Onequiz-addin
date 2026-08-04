@@ -81,5 +81,12 @@
         <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Click to Show a Taskpane"/>
       </bt:LongStrings>
     </Resources>
+  <WebApplicationInfo>
+  <Id>3ebc70d6-7982-4ca0-a5f5-bc3fe58d7337</Id>
+  <Resource>api://platform-chokehold-tutor.ngrok-free.dev/3ebc70d6-7982-4ca0-a5f5-bc3fe58d7337</Resource>
+  <Scopes>
+    <Scope>access_as_user</Scope>
+  </Scopes>
+</WebApplicationInfo>
   </VersionOverrides>
 </OfficeApp>
